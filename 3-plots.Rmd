@@ -1,0 +1,426 @@
+---
+title: "16S"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(magrittr)
+library(tibble)
+library(ggplot2)
+library(knitr)
+library(phyloseq)
+library(kableExtra)
+library(metagMisc)
+library(microViz)
+library(dplyr)
+library(decontam)
+library(ggpubr)
+library(tidyverse)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+seq=read.csv("~/OneDrive - UConn Health Center/ENT/data/df_final.csv",row.names = 1)
+
+
+meta=read.csv("~/OneDrive - UConn Health Center/ENT/data/meta_final1.csv",row.names = 1)
+
+
+```
+
+```{r,echo=FALSE}
+
+
+g_taxa2=data.frame(Genus=colnames(seq),row.names = colnames(seq))
+
+(phy <-phyloseq(otu_table(as.matrix(seq), taxa_are_rows = FALSE),
+                tax_table(as.matrix(g_taxa2)), sample_data(meta)))
+x <-nrow(seq)
+y <- 1/x
+(phy_prev <- phyloseq_filter_prevalence(phy, prev.trh = y)) 
+
+
+
+phy_prev1=subset_samples(physeq = phy_prev,Site=="Larynx")
+phy_prev1
+
+phy_genus = tax_glom(phy_prev1, taxrank = "Genus")
+y <- as.data.frame(phy_genus@otu_table)
+colnames(y) <- as.data.frame(phy_genus@tax_table)$Genus
+```
+
+```{r controls barplot, echo=FALSE, fig.dim=c(11,5.5)}
+phy_prev1.1=phy_prev1
+rownames(phy_prev1.1@sam_data)=phy_prev1.1@sam_data$ID
+rownames(phy_prev1.1@otu_table)=phy_prev1.1@sam_data$ID
+
+(
+  bar1 <- phy_prev1.1 %>%
+    comp_barplot(
+      tax_order = sum,
+      tax_level = "Genus",
+      n_taxa = 24
+    ) +
+    facet_grid( ~ Larynx_disease, scales = "free", space = "free") +
+    geom_bar(stat = "identity") +
+    guides(fill = guide_legend(
+      reverse = TRUE,
+      keywidth = 0.4,
+      keyheight = 0.4,
+      ncol = 4
+    )) +
+    labs(title = "", y = "Relative Abundance", fill = "Genus") +
+    theme_bw() +
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 15),
+     # axis.text.x = element_text(
+     #   size = 8,
+    #    vjust = 0,
+     #   colour = 1,
+     #   angle = 90
+     # ),
+      axis.text.y = element_text(size = 8, colour = 1),
+      axis.text.x = element_text(size = 8, colour = 1),
+      axis.title.x = element_text(size = 8, colour = 1),
+      axis.title.y = element_text(size = 8),
+      legend.text = element_text(size = 8),
+      legend.title = element_blank(),
+      legend.position = "bottom"
+    )
+)
+ggsave("bar.png",plot = bar1,path = "~/OneDrive - UConn Health Center/ENT/output/",
+       width = 10,height = 8,dpi = 320)
+```
+
+
+```{r controls barplot, echo=FALSE, fig.dim=c(11,5.5)}
+sam_data1=phy_prev1@sam_data
+
+df1=estimate_richness(phy_prev1)
+df1$Larynx_disease=phy_prev1@sam_data$Larynx_disease
+
+
+alpha_plot = ggplot(df1, aes(x = Larynx_disease, y = Observed, fill = Larynx_disease) )+
+  geom_boxplot(outlier.shape = NA)+
+  stat_compare_means(label.y = 67, label.x = 1, size = 7)  +
+  scale_fill_manual(values=c("#56B4E9", "#E69F00")) +
+  theme(legend.position = "none") +
+  theme(axis.text=element_text(size=20), axis.title=element_text(size=20)) +
+  ylab("Richness") +
+  geom_jitter(width = 0.08)
+alpha_plot
+
+ggsave("richness.png",plot = alpha_plot,path = "~/OneDrive - UConn Health Center/ENT/output/",
+       width = 7,height = 7,dpi = 320)
+
+
+diversity_plot = ggplot(df1, aes(x = Larynx_disease, y = Shannon, fill = Larynx_disease) )+
+  geom_boxplot(outlier.shape = NA)+
+  stat_compare_means(label.y = 4.5, label.x = 1, size = 7)  +
+  scale_fill_manual(values=c("#56B4E9", "#E69F00")) +
+  theme(legend.position = "none") +
+  theme(axis.text=element_text(size=20), axis.title=element_text(size=20)) +
+  ylab("diversity") +
+  geom_jitter(width = 0.08)
+diversity_plot
+
+ggsave("Diversity.png",plot = diversity_plot,path = "~/OneDrive - UConn Health Center/ENT/output/",
+       width = 7,height = 7,dpi = 320)
+
+
+```
+
+
+
+```{r}
+library(compositions)
+pca_res <- prcomp(clr(y))
+df=as.data.frame(pca_res$x)
+df$new=sam_data1$Larynx_disease
+summary(pca_res)
+library(vegan)
+dist=vegdist(y)
+dune.div <- adonis2(dist ~ df$new,  permutations = 999, method="bray")
+
+dune.div
+
+p= ggplot(data = df,aes(x=PC1,y=PC2, color = new))+
+  geom_point(size=2)+stat_ellipse()+ #ggsci::scale_colour_jco()+
+  scale_color_manual(values = c("Larynx_Normal"="dodgerblue3","Larynx_Disease"="gold2"))+
+  theme(axis.title.x = element_text(size = 15,face = "bold"),
+        panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.text.x = element_text(size = 15,face = "bold"),
+        axis.text.y = element_text(size = 15,face = "bold"),
+        axis.title.y = element_text(size = 15,face = "bold"),#"legend.position = c(0.69, 0.78)"
+        legend.text = element_text(size = 8,face = "bold"),
+        legend.title = element_text(size = 10,face = "bold"))+
+  guides(color = guide_legend(title = "Time"))+xlab("PC1 (5.03%)")+ylab("PC2 (4.87%)")+geom_text(x=-11, y=12, label="p.value=0.14",size=4.0,color="black")
+p
+ggsave("pca.png",plot = p,path = "~/OneDrive - UConn Health Center/ENT/output/",
+       height = 5,width = 8,dpi = 320)
+
+
+
+
+```
+
+
+
+```{r}
+r1=prop.table(as.matrix(y),1)*100
+r1=as.data.frame(r1)
+mean1=apply(r1,2,mean)
+mean1=as.data.frame(mean1)
+colnames(mean1)=paste("ra",sep = "")
+mean1$name=rownames(mean1)
+mean1=mean1[order(mean1$ra,decreasing = T),]
+name=mean1$name[1:31]
+y1=y[,colnames(y)%in%name]
+y2=y[,!colnames(y)%in%name,]
+y1$Others=rowSums(y2)
+```
+
+#Deseq
+```{r}
+library(DESeq2)
+my_data <- matrix(0, nrow = nrow(y2), ncol = ncol(y2))
+my_data=as.data.frame(y2)
+y1=cbind(y1,my_data)
+countData=as.data.frame(t(y1))
+metaData=sam_data1
+countData=countData+1
+#metaData=metaData%>%
+  #add_column(ID=rownames(metaData),.before = 1)
+metaData$Larynx_disease=as.factor(metaData$Larynx_disease)
+dds=DESeqDataSetFromMatrix(countData = countData,
+                           colData = metaData,
+                           design = ~Larynx_disease)
+dds=DESeq(dds)
+res <- results(dds)
+head(res)
+
+threshold <- res$padj < 0.05 & abs(res$log2FoldChange) > 2
+sigOE <- data.frame(subset(res, threshold==TRUE))
+sigOE_plot=data.frame(res)
+sigOE_plot=sigOE_plot[,c(2,6)]
+colnames(sigOE_plot)[2]=colnames(sigOE)[5]
+ library(EnhancedVolcano)
+p1=EnhancedVolcano(res,
+                   lab = rownames(res),
+                   x = 'log2FoldChange',
+                   y = 'pvalue',
+                   title = 'Larynx disease versus Larynx normal',
+                   pCutoff = 0.05)
+p1
+ggsave("Desq.png",plot = p1,path = "~/OneDrive - UConn Health Center/ENT/output/",width = 12,height = 10,dpi=320)
+
+
+```
+
+
+```{r}
+sigOE_ordered <- sigOE[order(sigOE$padj), ]
+
+ggplot(sigOE_ordered, aes(x=log2FoldChange, y=rownames(sigOE_ordered))) + 
+  geom_point()
+sigOE_ordered_1=sigOE[order(sigOE$log2FoldChange,decreasing = T), ]
+sigOE_ordered_1$Fungi=as.factor(rownames(sigOE_ordered_1))
+
+#plotCounts(dds, gene="Moraxella")
+
+sigOE_ordered_1 %>%
+  mutate(Fungi = fct_reorder( Fungi,log2FoldChange)) %>%
+  ggplot( aes(x=log2FoldChange, y=Fungi)) +
+  geom_point(colour="grey",size = 1)+theme(panel.background = element_blank(), axis.line = element_line(colour = "black"),axis.title.y = element_blank())+xlab("Log2 Fold Change")
+
+
+p=sigOE_ordered_1 %>%
+  mutate(Fungi = fct_reorder(Fungi, log2FoldChange)) %>%
+  ggplot(aes(x = log2FoldChange, y = Fungi, color = log2FoldChange>0 )) +
+  geom_point(size = 5) +
+  scale_color_manual(values = c("steelblue3", "darkseagreen3")) +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.title.y = element_blank(),
+        axis.text = element_text(size = 12, face = "bold"),
+        axis.title = element_text(size = 14, face = "bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),legend.position = "None") +
+  xlab("Log2 Fold Change") +ggtitle("Larynx disease vs Larynx normal")+
+  geom_vline(xintercept = 0, linetype = "dashed") 
+p
+ggsave("Larynx_disease_vs_Larynx_normal.png",plot = p,path = "~/OneDrive - UConn Health Center/ENT/output/",height = 5,width = 8)
+#####
+```
+
+```{r,include=FALSE}
+meta2=read.csv("~/OneDrive - UConn Health Center/ENT/data/Copy of Larynx - Patient Demographics_2.01.csv")
+
+meta2.1=meta2[meta2$ID%in%metaData$ID,]
+sam_data1=as.data.frame(sam_data1)
+
+meta2.1=meta2.1%>%
+  mutate(ID=as.character(ID))%>%
+  mutate(ID=factor(ID,levels = metaData$ID))%>%
+  arrange(ID)
+
+metaData=cbind(metaData,meta2.1[,c(3,4,10,11)])
+metaData$Smoking.history=ifelse(metaData$Smoking.history=="None","None","Smoke_Exposure")
+
+```
+
+```{r}
+metaData$Smoking.history=as.factor(metaData$Smoking.history)
+colnames(metaData)[6]="Smoking_history"
+colnames(metaData)[7]="Reflux_history"
+
+dds=DESeqDataSetFromMatrix(countData = countData,
+                           colData = metaData,
+                           design = ~Smoking_history)
+dds=DESeq(dds)
+res <- results(dds)
+head(res)
+
+threshold <- res$padj < 0.05 & abs(res$log2FoldChange) > 2
+sigOE <- data.frame(subset(res, threshold==TRUE))
+sigOE_plot=data.frame(res)
+sigOE_plot=sigOE_plot[,c(2,6)]
+colnames(sigOE_plot)[2]=colnames(sigOE)[5]
+res
+library(EnhancedVolcano)
+p1=EnhancedVolcano(res,
+                   lab = rownames(res),
+                   x = 'log2FoldChange',
+                   y = 'pvalue',
+                   title = 'Non Smoker versus Smoker',
+                   pCutoff = 0.05)
+p1
+ggsave("smoke.png",plot = p1,path = "~/OneDrive - UConn Health Center/ENT/output/",height = 5,width = 8)
+
+```
+```{r}
+sigOE_ordered <- sigOE[order(sigOE$padj), ]
+
+ggplot(sigOE_ordered, aes(x=log2FoldChange, y=rownames(sigOE_ordered))) + 
+  geom_point()
+sigOE_ordered_1=sigOE[order(sigOE$log2FoldChange,decreasing = T), ]
+sigOE_ordered_1$Fungi=as.factor(rownames(sigOE_ordered_1))
+
+#plotCounts(dds, gene="Moraxella")
+
+sigOE_ordered_1 %>%
+  mutate(Fungi = fct_reorder( Fungi,log2FoldChange)) %>%
+  ggplot( aes(x=log2FoldChange, y=Fungi)) +
+  geom_point(colour="grey",size = 1)+theme(panel.background = element_blank(), axis.line = element_line(colour = "black"),axis.title.y = element_blank())+xlab("Log2 Fold Change")
+sigOE_ordered_1.1=sigOE_ordered_1[!rownames(sigOE_ordered_1)%in%colnames(y2),]
+
+p=sigOE_ordered_1.1 %>%
+  mutate(Fungi = fct_reorder(Fungi, log2FoldChange)) %>%
+  ggplot(aes(x = log2FoldChange, y = Fungi, color = log2FoldChange>0 )) +
+  geom_point(size = 5) +
+  scale_color_manual(values = c("steelblue3", "darkseagreen3")) +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.title.y = element_blank(),
+        axis.text = element_text(size = 12, face = "bold"),
+        axis.title = element_text(size = 14, face = "bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),legend.position = "None") +
+  xlab("Log2 Fold Change") +ggtitle("Non Smoker versus Smoker")+
+  geom_vline(xintercept = 0, linetype = "dashed") 
+p
+ggsave("smoke_1.png",plot = p,path = "~/OneDrive - UConn Health Center/ENT/output/",height = 5,width = 8)
+
+
+```
+
+```{r}
+metaData$Reflux_history=as.factor(metaData$Reflux_history)
+
+dds=DESeqDataSetFromMatrix(countData = countData,
+                           colData = metaData,
+                           design = ~Reflux_history)
+dds=DESeq(dds)
+res <- results(dds)
+head(res)
+
+threshold <- res$padj < 0.05 & abs(res$log2FoldChange) > 2
+sigOE <- data.frame(subset(res, threshold==TRUE))
+sigOE_plot=data.frame(res)
+sigOE_plot=sigOE_plot[,c(2,6)]
+colnames(sigOE_plot)[2]=colnames(sigOE)[5]
+res
+library(EnhancedVolcano)
+p1=EnhancedVolcano(res,
+                   lab = rownames(res),
+                   x = 'log2FoldChange',
+                   y = 'pvalue',
+                   title = 'Reflux_no versus Reflux_yes',
+                   pCutoff = 0.05)
+p1
+ggsave("reflux.png",plot = p1,path = "~/OneDrive - UConn Health Center/ENT/output/",height = 5,width = 8)
+
+
+
+
+
+
+```
+
+```{r}
+
+sigOE_ordered <- sigOE[order(sigOE$padj), ]
+
+ggplot(sigOE_ordered, aes(x=log2FoldChange, y=rownames(sigOE_ordered))) + 
+  geom_point()
+sigOE_ordered_1=sigOE[order(sigOE$log2FoldChange,decreasing = T), ]
+sigOE_ordered_1$Fungi=as.factor(rownames(sigOE_ordered_1))
+
+#plotCounts(dds, gene="Moraxella")
+
+sigOE_ordered_1 %>%
+  mutate(Fungi = fct_reorder( Fungi,log2FoldChange)) %>%
+  ggplot( aes(x=log2FoldChange, y=Fungi)) +
+  geom_point(colour="grey",size = 1)+theme(panel.background = element_blank(), axis.line = element_line(colour = "black"),axis.title.y = element_blank())+xlab("Log2 Fold Change")
+sigOE_ordered_1.1=sigOE_ordered_1[!rownames(sigOE_ordered_1)%in%colnames(y2),]
+
+p=sigOE_ordered_1.1 %>%
+  mutate(Fungi = fct_reorder(Fungi, log2FoldChange)) %>%
+  ggplot(aes(x = log2FoldChange, y = Fungi, color = log2FoldChange>0 )) +
+  geom_point(size = 5) +
+  scale_color_manual(values = c("steelblue3", "darkseagreen3")) +
+  theme(panel.background = element_blank(),
+        axis.line = element_line(colour = "black"),
+        axis.title.y = element_blank(),
+        axis.text = element_text(size = 12, face = "bold"),
+        axis.title = element_text(size = 14, face = "bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),legend.position = "None") +
+  xlab("Log2 Fold Change") +ggtitle("Reflux_no vs Reflux_yes")+
+  geom_vline(xintercept = 0, linetype = "dashed") 
+p
+ggsave("reflux1.png",plot = p,path = "~/OneDrive - UConn Health Center/ENT/output/",height = 5,width = 8)
+
+
+
+```
+```{r}
+reab=apply()
+
+
+```
+
