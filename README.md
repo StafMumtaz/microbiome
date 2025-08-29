@@ -25,6 +25,8 @@ Folder **Sinus** contains the script **b1-sinus-analysis.m** doing this for sinu
 
 And Folder **All** contains **a2-analysis.m** doing this for some more broad figures. 
 
+You can ignore folder **Deprecated**, it was just has stuff from my first attempt at making this repository. 
+
 ---
 
 **b2-demographics.csv** in folder **Middle Ear** contains most recent anonomized demographics info which may help with future data stratification. 
