@@ -31,7 +31,7 @@ Also ignore the folder **Current Results x**, it contains images of data, but yo
 
 ---
 
-**b2-demographics.csv** in folder **Middle Ear** contains most recent anonomized demographics info which may help with future data stratification. 
+**b2-demographics.csv** in folder **Middle Ear** contained most recent anonomized demographics info, but was redacted to make this repository public.
 
 and finally,
 
