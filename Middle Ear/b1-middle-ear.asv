@@ -1,0 +1,60 @@
+%Mustafa Mumtaz
+%Middle Ear Analysis
+
+% Load (keep headers exactly as in the CSV)
+T = readtable('a3-middle-ear.csv','VariableNamingRule','preserve');
+idName = T.Properties.VariableNames{1};
+
+% Use only numeric abundance columns (skip ID col)
+numMask = varfun(@(x) isnumeric(x), T, 'OutputFormat','uniform');
+numMask(1) = false;
+genusLabels = T.Properties.VariableNames(numMask);              % for legend (original text)
+genusVars   = matlab.lang.makeValidName(genusLabels);           % safe names for table vars
+
+% Relative abundance to percent (robust to counts or proportions)
+A  = T{:,numMask}; A(~isfinite(A)) = 0;
+rs = sum(A,2,'omitnan'); z = rs>0;
+if any(rs > 1.0001), A(z,:) = 100*A(z,:)./rs(z);
+elseif max(A,[],'all') <= 1, A = 100*A;
+end
+
+% Split MEN vs others
+ids  = string(T.(idName));
+idxN = startsWith(ids,'MEN');
+
+tblN = [table(ids(idxN),'VariableNames',{idName}), array2table(A(idxN,:),'VariableNames',genusVars)];
+tblD = [table(ids(~idxN),'VariableNames',{idName}), array2table(A(~idxN,:),'VariableNames',genusVars)];
+
+% Spacer row (same schema as first available row)
+if ~isempty(tblN), template = tblN(1,:); elseif ~isempty(tblD), template = tblD(1,:); else, error('No rows to plot.'); end
+blank = template; blank.(idName) = ""; blank{:,2:end} = NaN;
+
+plotTbl = [tblN; blank; tblD];
+
+% Plot (classic "lines" palette)
+figure('Color','w');
+b = bar(plotTbl{:,2:end}, 'stacked', 'EdgeColor',[1 1 1], 'LineWidth',0.25, 'BarWidth',0.98);
+cmap = lines(width(plotTbl)-1); for k = 1:width(plotTbl)-1, b(k).FaceColor = cmap(k,:); end
+xticks(1:height(plotTbl)); xticklabels(string(plotTbl{:,1})); xtickangle(90);
+ylabel('% Relative Abundance'); ylim([0 100]); box off; set(gca,'FontSize',10,'TickDir','out');
+legend(genusLabels, 'Location','eastoutside', 'Box','off', 'Interpreter','none');
+title({'Relative Abundance Analysis — Middle Ear', 'MEN* (left)  |  spacer  |  Others (right)'});
+
+%%
+
+%
+A = readtable('a3b-me-no-agg.csv','VariableNamingRule','preserve');
+B = readtable('b2-demographics.csv','VariableNamingRule','preserve');
+
+leftKey = A.Properties.VariableNames{1};
+k  = B.Properties.VariableNames{2};
+d  = B.Properties.VariableNames(7:12);
+
+[~, ia] = unique(string(B{:,k}),'stable');  % de-dup on the key by name (no dot-access)
+B = B(ia,:);
+B = B(:,[k d]);
+
+J = outerjoin(A,B,'LeftKeys',leftKey,'RightKeys',k,'Type','left','MergeKeys',false,'RightVariables',d);
+
+rest = setdiff(A.Properties.VariableNames,leftKey,'stable');
+T2   = [J(:,leftKey) J(:,d) J(:,rest)];
