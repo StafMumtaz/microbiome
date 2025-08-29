@@ -27,6 +27,8 @@ And Folder **All** contains **a2-analysis.m** doing this for some more broad fig
 
 You can ignore folder **Deprecated**, it was just has stuff from my first attempt at making this repository. 
 
+Also ignore the folder **Current Results x**, it contains images of data, but you want to look at that through the file here called **Analysis.md**
+
 ---
 
 **b2-demographics.csv** in folder **Middle Ear** contains most recent anonomized demographics info which may help with future data stratification. 
